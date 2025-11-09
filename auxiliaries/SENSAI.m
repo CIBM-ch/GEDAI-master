@@ -12,7 +12,7 @@
 % dr.t.ros@gmail.com
 
 function [SIGNAL_subspace_similarity, NOISE_subspace_similarity, SENSAI_score] = SENSAI(EEGdata_epoched, srate, epoch_size, artifact_threshold, refCOV, Eval, Evec, noise_multiplier)
-%   Evaluates GEDAI cleaning quality for a given threshold.
+
 [EEGout_data, EEG_artifacts_data] = clean_EEG(EEGdata_epoched, srate, epoch_size, artifact_threshold, refCOV, Eval, Evec);
 
 %% Estimate Signal Quality

@@ -18,52 +18,47 @@
 function [EEG, com] = pop_GEDAI(EEG, varargin)
 %% Default parameter values
 artifact_threshold = 'auto';
-epoch_size_in_seconds = 1;
+epoch_size_in_cycles = 12;
+lowcut_frequency = 0.5;
 
 % Create an inputParser to handle varargin
 p = inputParser;
 p.addParameter('artifact_threshold', artifact_threshold, @isnumeric);
-p.addParameter('epoch_size', epoch_size_in_seconds, @isnumeric);
 p.addParameter('parallel_processing', false, @(parallel_processing) islogical(parallel_processing)); % Add output visual parameter
 p.addParameter('visualization_A', false, @(visualization_A) islogical(visualization_A)); % Add output visual parameter
 p.parse(varargin{:}); % Parse the input arguments
 
-% Extract parameters from the inputParser results
-artifact_threshold = p.Results.artifact_threshold;
-epoch_size_in_seconds = p.Results.epoch_size;
-
 % Create GUI for parameter input (rest of the code remains the same)
 uilist = { ...    
     {'style' 'text' 'string' 'Denoising strength'}    {'style' 'popupmenu' 'string' '                    auto|                    auto+|                    auto-'} ...
-    { 'style' 'text' 'string' 'Epoch size (seconds)' }, ...
-    { 'style' 'edit' 'string' num2str(epoch_size_in_seconds) 'tag' 'epoch_size' } ...
     {'style' 'text' 'string' 'Leadfield matrix'}    {'style' 'popupmenu' 'string' '          precomputed|          interpolated'} ...
+    {'style' 'text' 'string' 'Epoch size (wave cycles)'} {'style' 'edit' 'string' num2str(epoch_size_in_cycles)} ...
+    {'style' 'text' 'string' 'Low-cut frequency (Hz)'} {'style' 'edit' 'string' num2str(lowcut_frequency)} ...
     { 'style' 'text' 'string' 'Parallel processing' }, ...
     {'style' 'checkbox' 'string' ' requires more RAM' 'tag' 'parallel_processing' 'Value' 1}, ...
     { 'style' 'text' 'string' 'Artifact visualization' }, ...
     {'style' 'checkbox' 'string' ' vis_artifacts from ASR' 'tag' 'visualization_A' 'Value' 1}, ...
 };
-geometry = { [1, 1] [1, 1] [1, 1] [1, 1] [1, 1]};
-title = '  GEDAI denoising |  v1.1  ';
+geometry = { [1, 1] [1, 1] [1, 1] [1, 1] [1, 1] [1, 1]};
+title = '  GEDAI denoising |  v1.2  ';
 
 % Get user input
 [userInput, ~, ~, out] = inputgui( geometry, uilist, 'help(''GEDAI'')', title);
 if isempty(out), return; end
 
-% Extract parameters
-epoch_size_in_seconds = str2double(out.epoch_size);
+threshold_cell = {'auto', 'auto+', 'auto-'};
+artifact_threshold = threshold_cell{userInput{1}};
 
-threshold_cell = {'auto','auto+', 'auto-'};
-artifact_threshold = threshold_cell{userInput{1,1}};
-
-ref_matrix_cell = {'precomputed','interpolated'};
-ref_matrix_type = ref_matrix_cell{userInput{1,3}};
+ref_matrix_cell = {'precomputed', 'interpolated'};
+ref_matrix_type = ref_matrix_cell{userInput{2}};
+epoch_size_in_cycles = str2double(userInput{3});
+lowcut_frequency = str2double(userInput{4});
 
 use_parallel = logical(out.parallel_processing);
 visualize_artifacts = logical(out.visualization_A);
 
 
-        [EEG, ~, ~,~, ~, com] = GEDAI(EEG,artifact_threshold, epoch_size_in_seconds,ref_matrix_type,use_parallel,visualize_artifacts);
+        [EEG, ~, ~,~, ~, com] = GEDAI(EEG,artifact_threshold,epoch_size_in_cycles, lowcut_frequency,ref_matrix_type,use_parallel,visualize_artifacts);
   
         EEG = eegh(com, EEG); % update EEG.history
     

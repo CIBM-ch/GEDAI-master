@@ -288,7 +288,7 @@ if ~isempty(g.channel) || ~isempty(g.nochannel)
         if ~isempty(g.chantype) || ~isempty(g.rmchantype)
             error('You can select channels by name or by type but not both');
         end
-        inds = eeg_decodechan(EEG.chanlocs, g.channel, 'labels', true);
+        inds = eeg_decodechan(EEG, g.channel, 'labels', true);
         chanFlag = zeros(1, EEG.nbchan);
         chanFlag(inds) = 1;
     else
@@ -298,20 +298,20 @@ if ~isempty(g.channel) || ~isempty(g.nochannel)
         if ~isempty(g.chantype) || ~isempty(g.rmchantype)
             error('You can select channels by name or by type but not both');
         end
-        inds = eeg_decodechan(EEG.chanlocs, g.nochannel, 'labels', true);
+        inds = eeg_decodechan(EEG, g.nochannel, 'labels', true);
         chanFlag(inds) = 0;
     end
 else
     % find channels by type
     if ~isempty(g.chantype)
-        inds = eeg_decodechan(EEG.chanlocs, g.chantype, 'type', true);
+        inds = eeg_decodechan(EEG, g.chantype, 'type', true);
         chanFlag = zeros(1, EEG.nbchan);
         chanFlag(inds) = 1;
     else
         chanFlag = ones(1, EEG.nbchan);
     end
     if ~isempty(g.rmchantype)
-        inds = eeg_decodechan(EEG.chanlocs, g.rmchantype, 'type', true);
+        inds = eeg_decodechan(EEG, g.rmchantype, 'type', true);
         chanFlag(inds) = 0;
     end
 end

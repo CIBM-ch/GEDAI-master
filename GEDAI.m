@@ -7,11 +7,11 @@
 % Example 1: Using all default values
 %    >>  [EEG] = GEDAI(EEG);
 %
-% Example 2: Defining all parameters (default settings)
-%    >>  [EEG] = GEDAI(EEG, 'auto', 1.0, 'precomputed', true, false);
+% Example 2: Defining some parameters
+%    >>  [EEG] = GEDAI(EEG, 'auto', 12, 0.5, 'precomputed', true, false);
 %
 % Example 3: Using a "custom" [channel x channel] reference matrix 
-%    >>  [EEG] = GEDAI(EEG, auto', 1.0, your_refCOV);
+%    >>  [EEG] = GEDAI(EEG, 'auto', 12, 0.5, your_refCOV);
 %
 % Inputs: 
 % 
@@ -24,11 +24,13 @@
 %                                 ("auto-") might retain more signal at the 
 %                                 expense of noise. Possible levels:
 %                                 "auto-", "auto" or "auto+". 
-%                                 Default is "auto" which strikes a balance.
+%                                 Default is "auto".
 %                             
-%   epoch_size                  - Epoch size in seconds. Default value is 1 second
-%                                 but any value is possible as long as the number
-%                                 of samples in the epoch is higher than the sampling rate. 
+%   epoch_size_in_cycles        - Epoch size in number of wave cycles for each
+%                                 wavelet band. Default is 12.
+%
+%   lowcut_frequency            - Low-cut frequency in Hz. Wavelet bands below this
+%                                 frequency will be excluded. Default is 0.5 Hz.
 % 
 %   ref_matrix_type             - Matrix used as a reference for deartifacting.
 %
@@ -80,25 +82,23 @@
 % For any questions, please contact:
 % dr.t.ros@gmail.com
 
-function [EEGclean, EEGartifacts, SENSAI_score, SENSAI_score_per_band, artifact_threshold_per_band, com]=GEDAI(EEGin,artifact_threshold_type, epoch_size,ref_matrix_type,parallel,visualize_artifacts)
-
+function [EEGclean, EEGartifacts, SENSAI_score, SENSAI_score_per_band, artifact_threshold_per_band, com]=GEDAI(EEGin,artifact_threshold_type, epoch_size_in_cycles, lowcut_frequency, ref_matrix_type,parallel,visualize_artifacts)
 arguments
     EEGin struct;
     artifact_threshold_type = 'auto' ;
-    epoch_size = 1;
+    epoch_size_in_cycles = 12;  % Note: Number of wave CYCLES per epoch across wavelet bands (default = 12 cycles)
+    lowcut_frequency = 0.5; %  exclude all wavelet bands below this frequency (default = 0.5 Hz)
     ref_matrix_type = 'precomputed' ;
     parallel = true ;
     visualize_artifacts = false ;
 end
-
 p = fileparts(which('GEDAI'));
 addpath(fullfile(p, 'auxiliaries'));
-
 tStart = tic;  
-
-% -- Ensure epoch size results in an even number of samples
-if rem(epoch_size*EEGin.srate, 2) ~= 0
-    ideal_total_samples_double = epoch_size * EEGin.srate;
+% -- Ensure epoch size results in an even number of samples (for broadband)
+ broadband_epoch_size = 1; % Note: IN SECONDS (this is now only the DEFAULT for broadband)
+if rem(broadband_epoch_size*EEGin.srate, 2) ~= 0
+    ideal_total_samples_double = broadband_epoch_size * EEGin.srate;
     nearest_integer_samples = round(ideal_total_samples_double);
     if rem(nearest_integer_samples, 2) ~= 0
         if abs(ideal_total_samples_double - (nearest_integer_samples - 1)) < abs(ideal_total_samples_double - (nearest_integer_samples + 1))
@@ -109,8 +109,10 @@ if rem(epoch_size*EEGin.srate, 2) ~= 0
     else
         target_total_samples_int = nearest_integer_samples;
     end
-    epoch_size = target_total_samples_int / EEGin.srate;
+    broadband_epoch_size = target_total_samples_int / EEGin.srate;
 end
+%% Pre-processing
+EEGavRef = GEDAI_nonRankDeficientAveRef(EEGin); % non rank-deficient average referencing (Makoto's plugin)
 
 %% Create Reference Covariance Matrix (refCOV)
 if ~ischar(ref_matrix_type)
@@ -119,7 +121,7 @@ if ~ischar(ref_matrix_type)
 else
     switch ref_matrix_type
         case 'precomputed'
-            disp([newline 'GEDAI Leadfield model: BEM precomputed'])
+        disp([newline 'GEDAI Leadfield model: BEM precomputed'])
             L=load('fsavLEADFIELD_4_GEDAI.mat');
             electrodes_labels = {EEGin.chanlocs.labels};
             template_electrode_labels = {L.leadfield4GEDAI.electrodes.Name};
@@ -128,123 +130,187 @@ else
                 error('Electrode labels not found. Select "interpolated" leadfield matrix for non-standard locations.');
             end
             refCOV = L.leadfield4GEDAI.gram_matrix_avref(chanidx,chanidx);
+
         case 'interpolated'
             disp([newline 'GEDAI Leadfield model: BEM interpolated'])
             L=load('fsavLEADFIELD_4_GEDAI.mat');
+            % The leadfield data needs to be average referenced before interpolation
             leadfield_EEG = L.leadfield4GEDAI.EEG;
             leadfield_EEG.data = L.leadfield4GEDAI.Gain - mean(L.leadfield4GEDAI.Gain, 1); % Average reference
-            interpolated_EEG = interp_mont_GEDAI(leadfield_EEG, EEGin.chanlocs);
+            interpolated_EEG = interp_mont_GEDAI(leadfield_EEG, EEGavRef.chanlocs);
             refCOV = interpolated_EEG.data*interpolated_EEG.data';
     end
 end
+% --- Wavelet-based High-Pass Filtering ---
+number_of_wavelet_levels = 3;
+wavelet_type = 'haar';
 
-%% Pre-processing
-EEGin = GEDAI_nonRankDeficientAveRef(EEGin);
-EEG_original_data = EEGin.data; % Keep a copy of original data for visualization
+% Decompose the signal
+wpt_hp = modwt(EEGavRef.data', wavelet_type, number_of_wavelet_levels);
+mra_hp = modwtmra(wpt_hp, wavelet_type); % bands x samples x channels
+
+% Identify wavelet bands to remove based on lowcut_frequency
+srate = EEGavRef.srate;
+num_bands_hp = size(mra_hp, 1);
+for f = 1:num_bands_hp
+    upper_bound = srate / (2^f);
+    if upper_bound <= lowcut_frequency
+        mra_hp(f, :, :) = 0; % Remove bands below the cutoff
+    end
+end
+
+% Reconstruct the high-passed signal
+EEGavRef.data = squeeze(sum(mra_hp, 1))';
 
 %% First pass: Broadband denoising
-disp([newline 'Artifact threshold detection...please wait']);
+disp([newline 'SENSAI threshold detection...please wait']);
 broadband_optimization_type = 'parabolic';
 broadband_artifact_threshold_type = 'auto-';
-
-[cleaned_broadband_data, ~, broadband_sensai, broadband_thresh] = GEDAI_per_band(double(EEGin.data), EEGin.srate, EEGin.chanlocs, broadband_artifact_threshold_type, epoch_size, refCOV, broadband_optimization_type, parallel);
-
+[cleaned_broadband_data, ~, broadband_sensai, broadband_thresh] = GEDAI_per_band(double(EEGavRef.data), EEGavRef.srate, EEGavRef.chanlocs, broadband_artifact_threshold_type, broadband_epoch_size, refCOV, broadband_optimization_type, parallel);
 % Initialize the output arrays with the broadband results
 SENSAI_score_per_band = broadband_sensai;
 artifact_threshold_per_band = broadband_thresh;
-
-
 %% Second pass: Wavelet decomposition and per-band denoising
 unfiltered_data = cleaned_broadband_data';
 number_of_wavelet_levels = 3;
 number_of_wavelet_bands = 2^number_of_wavelet_levels + 1;
 wavelet_type = 'haar';
-
 wpt_EEG = modwt(unfiltered_data, wavelet_type, number_of_wavelet_bands);
 wpt_EEG = modwtmra(wpt_EEG, wavelet_type); % wavelet bands x samples x channels
-
 number_of_discrete_wavelet_bands = size(wpt_EEG, 1);
-lowest_wavelet_bands_to_exclude = ceil(600/EEGin.srate);
+
+% Pre-calculate center frequencies for each MRA wavelet band
+center_frequencies = zeros(1, number_of_discrete_wavelet_bands);
+lower_frequencies = zeros(1, number_of_discrete_wavelet_bands);
+upper_frequencies = zeros(1, number_of_discrete_wavelet_bands);
+for f = 1:number_of_discrete_wavelet_bands
+    % The passband for MRA band 'f' is approx. [Fs/(2^(f+1)), Fs/(2^f)]
+    lower_bound = srate / (2^(f + 1));
+    upper_bound = srate / (2^f);
+    center_frequencies(f) = (lower_bound + upper_bound) / 2;
+    lower_frequencies(f) = lower_bound; 
+    upper_frequencies(f) = upper_bound;
+end
+
+
+lowest_wavelet_bands_to_exclude = sum(upper_frequencies <= lowcut_frequency); 
 num_bands_to_process = number_of_discrete_wavelet_bands - lowest_wavelet_bands_to_exclude;
 
+% --- Check if data is long enough for the lowest frequency epoch size---
+if num_bands_to_process > 0
+    lowest_band_to_process_idx = num_bands_to_process;
+    epoch_size_lowest_band = epoch_size_in_cycles / lower_frequencies(lowest_band_to_process_idx);
+    required_samples = epoch_size_lowest_band * srate;
+
+    while required_samples > size(EEGavRef.data, 2) && num_bands_to_process > 0
+        warning('GEDAI:InsufficientData', 'EEG data length is too short for the epoch size required by the lowest frequency band (%g Hz). Increasing lowcut_frequency.', center_frequencies(lowest_band_to_process_idx));
+        lowcut_frequency = upper_frequencies(lowest_band_to_process_idx);
+        lowest_wavelet_bands_to_exclude = sum(upper_frequencies <= lowcut_frequency);
+        num_bands_to_process = number_of_discrete_wavelet_bands - lowest_wavelet_bands_to_exclude;
+        
+        lowest_band_to_process_idx = num_bands_to_process;
+        epoch_size_lowest_band = epoch_size_in_cycles / lower_frequencies(lowest_band_to_process_idx);
+        required_samples = epoch_size_lowest_band * srate;
+    end
+end
+
+%%  Define Frequency-Dependent Epoch Sizes ---
+
+% Calculate the ideal epoch size for each band based on the rule
+epoch_sizes_per_wavelet_band = epoch_size_in_cycles ./ lower_frequencies;
+
+% --- Display wavelet band-widths and epoch sizes ---
+disp(' '); 
+left_margin = '  '; 
+header1 = 'Wavelet Center Freq (Hz)';
+header2 = 'Epoch Size (s)';
+str_freqs = num2str(center_frequencies(1:num_bands_to_process)', '%.2g');
+str_epochs = num2str(epoch_sizes_per_wavelet_band(1:num_bands_to_process)', '%.2g');
+col1_width = max(length(header1), size(str_freqs, 2));
+col2_width = max(length(header2), size(str_epochs, 2));
+fprintf('%s%*s | %-*s\n', left_margin, col1_width, header1, col2_width, header2);
+fprintf('%s%s-|- %s\n', left_margin, repmat('-', 1, col1_width), repmat('-', 1, col2_width));
+for i = 1:num_bands_to_process
+    fprintf('%s%*s | %-*s\n', left_margin, col1_width, str_freqs(i,:), col2_width, str_epochs(i,:));
+end
+
+disp([newline 'Excluding ', num2str(lowest_wavelet_bands_to_exclude), ' wavelet bands with upper frequency < ' num2str(lowcut_frequency) ' Hz.']);
+
+
+% Correct each epoch size to ensure it corresponds to an even number of samples
+for f = 1:num_bands_to_process
+    ideal_samples = epoch_sizes_per_wavelet_band(f) * srate;
+    rounded_samples = round(ideal_samples);
+    if rem(rounded_samples, 2) ~= 0
+        % If odd, choose the nearest even number
+        if abs(ideal_samples - (rounded_samples - 1)) < abs(ideal_samples - (rounded_samples + 1))
+            final_samples = rounded_samples - 1;
+        else
+            final_samples = rounded_samples + 1;
+        end
+    else
+        final_samples = rounded_samples;
+    end
+    epoch_sizes_per_wavelet_band(f) = final_samples / srate;
+end
+
+%% Denoise each wavelet band
 num_channels = size(cleaned_broadband_data, 1);
 num_samples = size(cleaned_broadband_data, 2);
 wavelet_band_filtered_data = zeros(num_bands_to_process, num_channels, num_samples);
-
-
-%% Denoise each wavelet band
 if parallel
-    % Create temporary storage for parfor results
     temp_sensai_scores = zeros(1, num_bands_to_process);
     temp_thresholds = zeros(1, num_bands_to_process);
     
     parfor f = 1:num_bands_to_process
-        % Get the data for the current band
         wavelet_data_band = transpose(squeeze(wpt_EEG(f,:,:)));
-
-        % Call the processing function directly inside the loop
-        [cleaned_band_data, ~, temp_sensai, temp_thresh] = GEDAI_per_band(double(wavelet_data_band), EEGin.srate, EEGin.chanlocs, artifact_threshold_type, epoch_size, refCOV, 'parabolic', false);
         
-        % Assign results to sliced output variables
+        current_epoch_size = epoch_sizes_per_wavelet_band(f);
+        [cleaned_band_data, ~, temp_sensai, temp_thresh] = GEDAI_per_band(double(wavelet_data_band), srate, EEGavRef.chanlocs, artifact_threshold_type, current_epoch_size, refCOV, 'parabolic', false);
+        
         wavelet_band_filtered_data(f, :,:) = cleaned_band_data;
         temp_sensai_scores(f) = temp_sensai;
         temp_thresholds(f) = temp_thresh;
     end
     
-    % After the loop, append the results to the main arrays
     SENSAI_score_per_band = [SENSAI_score_per_band, temp_sensai_scores];
     artifact_threshold_per_band = [artifact_threshold_per_band, temp_thresholds];
     
 else % Non-parallel version
     for f = 1:num_bands_to_process
-        disp([newline 'wavelet band = ' num2str(f)])
         wavelet_data_band = transpose(squeeze(wpt_EEG(f,:,:)));
         
-        % Call the processing function directly
-        [cleaned_band_data, ~, sensai_val, thresh_val] = GEDAI_per_band(wavelet_data_band, EEGin.srate, EEGin.chanlocs, artifact_threshold_type, epoch_size, refCOV, 'parabolic', false);
+        current_epoch_size = epoch_sizes_per_wavelet_band(f);
+        [cleaned_band_data, ~, sensai_val, thresh_val] = GEDAI_per_band(wavelet_data_band, srate, EEGavRef.chanlocs, artifact_threshold_type, current_epoch_size, refCOV, 'parabolic', false);
         
         wavelet_band_filtered_data(f, :,:) = cleaned_band_data;
         SENSAI_score_per_band(f+1) = sensai_val;
         artifact_threshold_per_band(f+1) = thresh_val;
     end
 end
-
-
 %% Finalization: Reconstruct EEG and calculate final scores
 % Reconstruct EEG from cleaned wavelet bands
-EEGclean = EEGin;
+EEGclean = EEGavRef;
 EEGclean.data = squeeze(sum(wavelet_band_filtered_data, 1));
-
-% Ensure original data has same length as cleaned data for artifact calculation
-EEGin.data = EEGin.data(:, 1:size(EEGclean.data, 2));
-
 % Create artifact structure
 EEGartifacts = EEGclean;
-EEGartifacts.data = EEGin.data - EEGclean.data;
-
-% Update EEGLAB params due to cropping of last epoch
-EEGclean.times = EEGclean.times(1:size(EEGclean.data, 2));
-EEGclean.pnts = size(EEGclean.data, 2);
-EEGclean.xmax = EEGclean.times(end) / 1000;
-
-EEGartifacts.times = EEGartifacts.times(1:size(EEGartifacts.data, 2));
-EEGartifacts.pnts = size(EEGartifacts.data, 2);
-EEGartifacts.xmax = EEGartifacts.times(end) / 1000;
-
+EEGartifacts.data = EEGavRef.data(:, 1:size(EEGclean.data, 2)) - EEGclean.data;
 % Calculate composite SENSAI score
 noise_multiplier = 1;
-[SENSAI_score] = SENSAI_basic(double(EEGclean.data), double(EEGartifacts.data), EEGin.srate, epoch_size, refCOV, noise_multiplier);
+[SENSAI_score] = SENSAI_basic(double(EEGclean.data), double(EEGartifacts.data), EEGavRef.srate, broadband_epoch_size, refCOV, noise_multiplier);
 tEnd = toc(tStart);
-
 disp([newline 'SENSAI score: ' num2str(round(SENSAI_score, 2, "significant"))]);
 disp(['Elapsed time: ' num2str(round(tEnd, 2, "significant")) ' seconds']);
-
 % Generate command history
-com = sprintf('EEG = GEDAI(EEG, ''%s'', %s, ''%s'', %d, %d);', ...
-    artifact_threshold_type, num2str(epoch_size), ref_matrix_type, parallel, visualize_artifacts);
+if ~ischar(ref_matrix_type)
+    ref_matrix_type = 'custom';
+end
+com = sprintf('EEG = GEDAI(EEG, ''artifact_threshold'', ''%s'', ''epoch_size_in_cycles'', %s, ''lowcut_frequency'', %s, ''ref_matrix_type'', ''%s'', ''parallel_processing'', %d, ''visualization_A'', %d);', ...
+    artifact_threshold_type, num2str(epoch_size_in_cycles), num2str(lowcut_frequency), ref_matrix_type, parallel, visualize_artifacts);
+if visualize_artifacts
+    vis_artifacts(EEGclean, EEGavRef, 'ScaleBy', 'noscale', 'YScaling', 3*mad(EEGavRef.data(:)), 'show_removed_portions', false);
+end
+
 EEGclean = eegh(com, EEGclean);
 
-if visualize_artifacts
-    vis_artifacts(EEGclean, EEGin, 'ScaleBy', 'noscale', 'YScaling', 3*mad(EEG_original_data(:)), 'show_removed_portions', false);
-end
 end
