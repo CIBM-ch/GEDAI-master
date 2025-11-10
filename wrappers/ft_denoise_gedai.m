@@ -54,6 +54,7 @@ function [data_clean, EEGartifacts, SENSAI_score, SENSAI_score_per_band, artifac
       % apply on MEG data, please define your own model, the labels of the model
       % should contains all the data.labels.
 
+% Author : Yingqi Huang, University of Geneva, 2025
 
 % ---------- defaults & sanity ----------
 if nargin < 2 || ~isstruct(cfg) || ~isstruct(data)
