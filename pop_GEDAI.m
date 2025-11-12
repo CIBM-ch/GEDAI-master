@@ -23,9 +23,9 @@ lowcut_frequency = 0.5;
 
 % Create an inputParser to handle varargin
 p = inputParser;
-p.addParameter('artifact_threshold', artifact_threshold, @isnumeric);
-p.addParameter('parallel_processing', false, @(parallel_processing) islogical(parallel_processing)); % Add output visual parameter
-p.addParameter('visualization_A', false, @(visualization_A) islogical(visualization_A)); % Add output visual parameter
+addParameter(p, 'artifact_threshold', artifact_threshold);
+addParameter(p, 'parallel_processing', false); % Add output visual parameter
+addParameter(p, 'visualization_A', false); % Add output visual parameter
 p.parse(varargin{:}); % Parse the input arguments
 
 % Create GUI for parameter input (rest of the code remains the same)
