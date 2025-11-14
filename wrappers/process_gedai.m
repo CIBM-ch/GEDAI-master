@@ -30,13 +30,14 @@ function sProcess = GetDescription() %#ok<DEFNU>
     sProcess.FileTag     = 'gedai';
     sProcess.Category    = 'Filter';
     sProcess.SubGroup    = 'Artifacts';
-    sProcess.Index       = 65;
+    sProcess.Index       = 113.7;
     % Definition of the input accepted by this process
     sProcess.InputTypes  = {'data', 'raw'};
     sProcess.OutputTypes = {'data', 'raw'};
     sProcess.nInputs     = 1;
     sProcess.nMinFiles   = 1;
     sProcess.Description = 'https://github.com/neurotuning/GEDAI-master';
+    sProcess.isSeparator = 1;    
     % Definition of the options
     % === Artifact threshold type
         % Options: Comment
