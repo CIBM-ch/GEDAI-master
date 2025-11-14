@@ -204,9 +204,4 @@ function sOutput = eeglab2brainstorm(EEG, sInput)
 
     % Update the comment
     sOutput.Comment = EEG.setname;
-
-    % Update the history
-    if isfield(EEG, 'history')
-        sOutput.History = EEG.history;
-    end
 end
