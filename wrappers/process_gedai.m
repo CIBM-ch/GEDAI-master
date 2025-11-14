@@ -160,20 +160,10 @@ end
 
 %% ===== HELPER FUNCTIONS =====
 function EEG = brainstorm2eeglab(sInput, ChannelMat)
-    % Check if EEGLAB is in the path
-    if ~exist('eeg_checkset', 'file')
-        error('EEGLAB function eeg_checkset.m not found in the path. Please add EEGLAB to your Matlab path.');
-    end
-
-    % Create an empty EEGLAB structure
-    EEG = eeg_emptyset;
-
-    % Populate EEG fields from sInput
+    % Create an EEGLAB EEG structure populated with fields from sInput
     EEG.setname = sInput.Comment;
-    if isfield(sInput, 'FileName')
-        EEG.filename = sInput.FileName;
-        EEG.filepath = fileparts(sInput.FileName);
-    end
+    EEG.filename = sInput.FileName;
+    EEG.filepath = fileparts(sInput.FileName);
     EEG.subject = '';
     EEG.group = '';
     EEG.condition = '';
@@ -186,7 +176,9 @@ function EEG = brainstorm2eeglab(sInput, ChannelMat)
     EEG.xmax = sInput.TimeVector(end);
     EEG.times = sInput.TimeVector * 1000; % Convert to ms
     EEG.data = sInput.A;
-    
+    EEG.etc = [];
+    EEG.event = [];
+
     % Populate chanlocs
     for i = 1:length(ChannelMat.Channel)
         EEG.chanlocs(i).labels = ChannelMat.Channel(i).Name;
@@ -197,9 +189,6 @@ function EEG = brainstorm2eeglab(sInput, ChannelMat)
         end
         EEG.chanlocs(i).type = ChannelMat.Channel(i).Type;
     end
-
-    % Check the consistency of the dataset
-    EEG = eeg_checkset(EEG);
 end
 
 function sOutput = eeglab2brainstorm(EEG, sInput)
