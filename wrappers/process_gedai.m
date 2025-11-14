@@ -109,7 +109,7 @@ end
 
 %% ===== FORMAT COMMENT =====
 function Comment = FormatComment(sProcess) %#ok<DEFNU>
-    [artifact_threshold_type, epoch_size_in_cycles, lowcut_frequency, ref_matrix_type, ~, ~] = GetOptions(sProcess);
+    [artifact_threshold_type, epoch_size_in_cycles, lowcut_frequency, ref_matrix_type] = GetOptions(sProcess);
     Comment = ['GEDAI: ' artifact_threshold_type ', ' num2str(epoch_size_in_cycles) ' cycles, ' num2str(lowcut_frequency) ' Hz, ' ref_matrix_type];
 end
 
@@ -146,9 +146,8 @@ function sInput = Run(sProcess, sInput) %#ok<DEFNU>
         ref_matrix_param = 'interpolated';
     end
 
-
     % Run GEDAI
-    [EEGclean, ~, ~, ~, ~, ~] = GEDAI(EEG, artifact_threshold_type, epoch_size_in_cycles, lowcut_frequency, ref_matrix_param, parallel, visualize_artifacts);
+    EEGclean = GEDAI(EEG, artifact_threshold_type, epoch_size_in_cycles, lowcut_frequency, ref_matrix_param, parallel, visualize_artifacts);
     
     % Convert back to Brainstorm format
     sInput = eeglab2brainstorm(EEGclean, sInput);
