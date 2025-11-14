@@ -37,36 +37,33 @@ function sProcess = GetDescription() %#ok<DEFNU>
     sProcess.nInputs     = 1;
     sProcess.nMinFiles   = 1;
     sProcess.Description = 'https://github.com/neurotuning/GEDAI-master';
-    sProcess.isSeparator = 1;    
+    sProcess.isSeparator = 1;
     % Definition of the options
     % === Artifact threshold type
-        % Options: Comment
-    sProcess.options.Comment1.Comment = '<BR><B>ARTIFACTING STRENGTH:<B>';
-    sProcess.options.Comment1.Type    = 'label';
-    sProcess.options.artifact_threshold_type.Comment = {'auto-', 'auto', 'auto+'};
-    sProcess.options.artifact_threshold_type.Type    = 'radio';
-    sProcess.options.artifact_threshold_type.Value   = 2;
+    sProcess.options.label1.Comment = '<B>Artifact threshold type</B>';
+    sProcess.options.label1.Type    = 'label';
+    sProcess.options.artifact_threshold_type.Comment = {'auto- &nbsp', 'auto &nbsp', 'auto+ &nbsp', ''; ...
+                                                        'auto-', 'auto', 'auto+', ''};
+    sProcess.options.artifact_threshold_type.Type    = 'radio_linelabel';
+    sProcess.options.artifact_threshold_type.Value   = 'auto';
     % === Epoch size in cycles
-    sProcess.options.Comment2.Comment = '<BR><B>EPOCH SIZE:<B>';
-    sProcess.options.Comment2.Type    = 'label';
     sProcess.options.epoch_size_in_cycles.Comment = 'Epoch size in wave cycles (e.g., 12)';
     sProcess.options.epoch_size_in_cycles.Type    = 'value';
     sProcess.options.epoch_size_in_cycles.Value   = {12, 'cycles', 0};
     % === Low-cut frequency
-    sProcess.options.Comment2_5.Comment = '<BR><B>LOW-CUT FREQUENCY:<B>';
-    sProcess.options.Comment2_5.Type    = 'label';
-    sProcess.options.lowcut_frequency.Comment = 'Low-cut frequency (Hz)';
+    sProcess.options.lowcut_frequency.Comment = 'Low-cut frequency';
     sProcess.options.lowcut_frequency.Type    = 'value';
     sProcess.options.lowcut_frequency.Value   = {0.5, 'Hz', 0};
     % === Reference matrix type
-    sProcess.options.Comment3.Comment = '<BR><B>LEADFIELD MATRIX:<B>';
-    sProcess.options.Comment3.Type    = 'label';
-    sProcess.options.ref_matrix_type.Comment = {'Freesurfer (precomputed)', 'Freesurfer (interpolated)', 'Brainstorm leadfield'};
-    sProcess.options.ref_matrix_type.Type    = 'radio';
-    sProcess.options.ref_matrix_type.Value   = 1;
+    sProcess.options.label2.Comment = '<B>Leadfield matrix</B>';
+    sProcess.options.label2.Type    = 'label';
+    sProcess.options.ref_matrix_type.Comment = {'Freesurfer (precomputed)', 'Freesurfer (interpolated)', 'Brainstorm headmodel'; ...
+                                                'fs_precomputed', 'fs_interpolated', 'bst_headmodel'};
+    sProcess.options.ref_matrix_type.Type    = 'radio_label';
+    sProcess.options.ref_matrix_type.Value   = 'bst_headmodel';
     % === Parallel processing
-    sProcess.options.Comment4.Comment = '<BR><B> <B>';
-    sProcess.options.Comment4.Type    = 'label';
+    sProcess.options.label3.Comment   = '<BR>';
+    sProcess.options.label3.Type      = 'label';
     sProcess.options.parallel.Comment = 'Use parallel processing';
     sProcess.options.parallel.Type    = 'checkbox';
     sProcess.options.parallel.Value   = 1;
@@ -80,25 +77,18 @@ end
 %% ===== GET OPTIONS =====
 function [artifact_threshold_type, epoch_size_in_cycles, lowcut_frequency, ref_matrix_type, parallel, visualize_artifacts] = GetOptions(sProcess)
     % Artifact threshold type
-    switch sProcess.options.artifact_threshold_type.Value
-        case 1
-            artifact_threshold_type = 'auto-';
-        case 2
-            artifact_threshold_type = 'auto';
-        case 3
-            artifact_threshold_type = 'auto+';
-    end
+    artifact_threshold_type = sProcess.options.artifact_threshold_type.Value;
     % Epoch size in cycles
     epoch_size_in_cycles = sProcess.options.epoch_size_in_cycles.Value{1};
     % Low-cut frequency
     lowcut_frequency = sProcess.options.lowcut_frequency.Value{1};
     % Reference matrix type
     switch sProcess.options.ref_matrix_type.Value
-        case 1
+        case 'fs_precomputed'
             ref_matrix_type = 'Freesurfer (precomputed)';
-        case 2
+        case 'fs_interpolated'
             ref_matrix_type = 'Freesurfer (interpolated)';
-        case 3
+        case 'bst_headmodel'
             ref_matrix_type = 'Brainstorm leadfield';
     end
     % Parallel processing
