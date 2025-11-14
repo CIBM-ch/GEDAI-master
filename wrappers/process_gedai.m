@@ -1,26 +1,21 @@
-function varargout = process_GEDAI_Brainstorm( varargin )
-% PROCESS_GEDAI: Wrapper for GEDAI.m function (copy into the Brainstorm toolbox directory: brainstorm3\toolbox\process\functions )
+function varargout = process_gedai( varargin )
+% PROCESS_GEDAI: Wrapper for GEDAI.m function to be used in Brainstorm
 %
-% USAGE:                sProcess = process_GEDAI('GetDescription')
-%                         sInput = process_GEDAI('Run', sProcess, sInput)
+% USAGE:                sProcess = process_gedai('GetDescription')
+%                         sInput = process_gedai('Run', sProcess, sInput)
 
-% @=============================================================================
-% This function is part of the Brainstorm software:
-% https://neuroimage.usc.edu/brainstorm
-% 
-% Copyright (c) University of Southern California & McGill University
-% This software is distributed under the terms of the GNU General Public License
-% as published by the Free Software Foundation. Further details on the GPLv3
-% license can be found at http://www.gnu.org/copyleft/gpl.html.
-% 
-% FOR RESEARCH PURPOSES ONLY. THE SOFTWARE IS PROVIDED "AS IS," AND THE
-% UNIVERSITY OF SOUTHERN CALIFORNIA AND ITS COLLABORATORS DO NOT MAKE ANY
-% WARRANTY, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF
-% MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, NOR DO THEY ASSUME ANY
-% LIABILITY OR RESPONSIBILITY FOR THE USE OF THIS SOFTWARE.
+% [Generalized Eigenvalue De-Artifacting Intrument (GEDAI)]
+% PolyForm Noncommercial License 1.0.0
+% https://polyformproject.org/licenses/noncommercial/1.0.0
 %
-% For more information type "brainstorm license" at command prompt.
-% =============================================================================@
+% Copyright (C) [2025] Tomas Ros & Abele Michela
+%             NeuroTuning Lab [ https://github.com/neurotuning ]
+%             Center for Biomedical Imaging
+%             University of Geneva
+%             Switzerland
+%
+% For any questions, please contact:
+% dr.t.ros@gmail.com
 %
 % Authors: Tomas Ros, Center for Biomedical Imaging (CIBM), University of Geneva, 2025
 
