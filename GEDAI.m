@@ -321,7 +321,8 @@ com = sprintf('EEG = GEDAI(EEG, ''artifact_threshold'', ''%s'', ''epoch_size_in_
 if visualize_artifacts
     vis_artifacts(EEGclean, EEGavRef, 'ScaleBy', 'noscale', 'YScaling', 3*mad(EEGavRef.data(:)), 'show_removed_portions', false);
 end
-
-EEGclean = eegh(com, EEGclean);
-
+% Add command history to EEGLAB structure
+if exist('eegh', 'file')
+    EEGclean = eegh(com, EEGclean);
+end
 end

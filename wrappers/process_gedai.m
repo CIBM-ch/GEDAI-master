@@ -1,26 +1,21 @@
-function varargout = process_GEDAI_Brainstorm( varargin )
-% PROCESS_GEDAI: Wrapper for GEDAI.m function (copy into the Brainstorm toolbox directory: brainstorm3\toolbox\process\functions )
+function varargout = process_gedai( varargin )
+% PROCESS_GEDAI: Wrapper for GEDAI.m function to be used in Brainstorm
 %
-% USAGE:                sProcess = process_GEDAI('GetDescription')
-%                         sInput = process_GEDAI('Run', sProcess, sInput)
+% USAGE:                sProcess = process_gedai('GetDescription')
+%                         sInput = process_gedai('Run', sProcess, sInput)
 
-% @=============================================================================
-% This function is part of the Brainstorm software:
-% https://neuroimage.usc.edu/brainstorm
-% 
-% Copyright (c) University of Southern California & McGill University
-% This software is distributed under the terms of the GNU General Public License
-% as published by the Free Software Foundation. Further details on the GPLv3
-% license can be found at http://www.gnu.org/copyleft/gpl.html.
-% 
-% FOR RESEARCH PURPOSES ONLY. THE SOFTWARE IS PROVIDED "AS IS," AND THE
-% UNIVERSITY OF SOUTHERN CALIFORNIA AND ITS COLLABORATORS DO NOT MAKE ANY
-% WARRANTY, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF
-% MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, NOR DO THEY ASSUME ANY
-% LIABILITY OR RESPONSIBILITY FOR THE USE OF THIS SOFTWARE.
+% [Generalized Eigenvalue De-Artifacting Intrument (GEDAI)]
+% PolyForm Noncommercial License 1.0.0
+% https://polyformproject.org/licenses/noncommercial/1.0.0
 %
-% For more information type "brainstorm license" at command prompt.
-% =============================================================================@
+% Copyright (C) [2025] Tomas Ros & Abele Michela
+%             NeuroTuning Lab [ https://github.com/neurotuning ]
+%             Center for Biomedical Imaging
+%             University of Geneva
+%             Switzerland
+%
+% For any questions, please contact:
+% dr.t.ros@gmail.com
 %
 % Authors: Tomas Ros, Center for Biomedical Imaging (CIBM), University of Geneva, 2025
 
@@ -35,42 +30,40 @@ function sProcess = GetDescription() %#ok<DEFNU>
     sProcess.FileTag     = 'gedai';
     sProcess.Category    = 'Filter';
     sProcess.SubGroup    = 'Artifacts';
-    sProcess.Index       = 65;
+    sProcess.Index       = 113.7;
     % Definition of the input accepted by this process
     sProcess.InputTypes  = {'data', 'raw'};
     sProcess.OutputTypes = {'data', 'raw'};
     sProcess.nInputs     = 1;
     sProcess.nMinFiles   = 1;
     sProcess.Description = 'https://github.com/neurotuning/GEDAI-master';
+    sProcess.isSeparator = 1;
     % Definition of the options
     % === Artifact threshold type
-        % Options: Comment
-    sProcess.options.Comment1.Comment = '<BR><B>ARTIFACTING STRENGTH:<B>';
-    sProcess.options.Comment1.Type    = 'label';
-    sProcess.options.artifact_threshold_type.Comment = {'auto-', 'auto', 'auto+'};
-    sProcess.options.artifact_threshold_type.Type    = 'radio';
-    sProcess.options.artifact_threshold_type.Value   = 2;
+    sProcess.options.label1.Comment = '<B>Artifact threshold type</B>';
+    sProcess.options.label1.Type    = 'label';
+    sProcess.options.artifact_threshold_type.Comment = {'auto- &nbsp', 'auto &nbsp', 'auto+ &nbsp', ''; ...
+                                                        'auto-', 'auto', 'auto+', ''};
+    sProcess.options.artifact_threshold_type.Type    = 'radio_linelabel';
+    sProcess.options.artifact_threshold_type.Value   = 'auto';
     % === Epoch size in cycles
-    sProcess.options.Comment2.Comment = '<BR><B>EPOCH SIZE:<B>';
-    sProcess.options.Comment2.Type    = 'label';
     sProcess.options.epoch_size_in_cycles.Comment = 'Epoch size in wave cycles (e.g., 12)';
     sProcess.options.epoch_size_in_cycles.Type    = 'value';
     sProcess.options.epoch_size_in_cycles.Value   = {12, 'cycles', 0};
     % === Low-cut frequency
-    sProcess.options.Comment2_5.Comment = '<BR><B>LOW-CUT FREQUENCY:<B>';
-    sProcess.options.Comment2_5.Type    = 'label';
-    sProcess.options.lowcut_frequency.Comment = 'Low-cut frequency (Hz)';
+    sProcess.options.lowcut_frequency.Comment = 'Low-cut frequency';
     sProcess.options.lowcut_frequency.Type    = 'value';
     sProcess.options.lowcut_frequency.Value   = {0.5, 'Hz', 0};
     % === Reference matrix type
-    sProcess.options.Comment3.Comment = '<BR><B>LEADFIELD MATRIX:<B>';
-    sProcess.options.Comment3.Type    = 'label';
-    sProcess.options.ref_matrix_type.Comment = {'Freesurfer (precomputed)', 'Freesurfer (interpolated)', 'Brainstorm leadfield'};
-    sProcess.options.ref_matrix_type.Type    = 'radio';
-    sProcess.options.ref_matrix_type.Value   = 1;
+    sProcess.options.label2.Comment = '<B>Leadfield matrix</B>';
+    sProcess.options.label2.Type    = 'label';
+    sProcess.options.ref_matrix_type.Comment = {'Freesurfer (precomputed)', 'Freesurfer (interpolated)', 'Brainstorm headmodel'; ...
+                                                'fs_precomputed', 'fs_interpolated', 'bst_headmodel'};
+    sProcess.options.ref_matrix_type.Type    = 'radio_label';
+    sProcess.options.ref_matrix_type.Value   = 'bst_headmodel';
     % === Parallel processing
-    sProcess.options.Comment4.Comment = '<BR><B> <B>';
-    sProcess.options.Comment4.Type    = 'label';
+    sProcess.options.label3.Comment   = '<BR>';
+    sProcess.options.label3.Type      = 'label';
     sProcess.options.parallel.Comment = 'Use parallel processing';
     sProcess.options.parallel.Type    = 'checkbox';
     sProcess.options.parallel.Value   = 1;
@@ -84,25 +77,18 @@ end
 %% ===== GET OPTIONS =====
 function [artifact_threshold_type, epoch_size_in_cycles, lowcut_frequency, ref_matrix_type, parallel, visualize_artifacts] = GetOptions(sProcess)
     % Artifact threshold type
-    switch sProcess.options.artifact_threshold_type.Value
-        case 1
-            artifact_threshold_type = 'auto-';
-        case 2
-            artifact_threshold_type = 'auto';
-        case 3
-            artifact_threshold_type = 'auto+';
-    end
+    artifact_threshold_type = sProcess.options.artifact_threshold_type.Value;
     % Epoch size in cycles
     epoch_size_in_cycles = sProcess.options.epoch_size_in_cycles.Value{1};
     % Low-cut frequency
     lowcut_frequency = sProcess.options.lowcut_frequency.Value{1};
     % Reference matrix type
     switch sProcess.options.ref_matrix_type.Value
-        case 1
+        case 'fs_precomputed'
             ref_matrix_type = 'Freesurfer (precomputed)';
-        case 2
+        case 'fs_interpolated'
             ref_matrix_type = 'Freesurfer (interpolated)';
-        case 3
+        case 'bst_headmodel'
             ref_matrix_type = 'Brainstorm leadfield';
     end
     % Parallel processing
@@ -114,7 +100,7 @@ end
 
 %% ===== FORMAT COMMENT =====
 function Comment = FormatComment(sProcess) %#ok<DEFNU>
-    [artifact_threshold_type, epoch_size_in_cycles, lowcut_frequency, ref_matrix_type, ~, ~] = GetOptions(sProcess);
+    [artifact_threshold_type, epoch_size_in_cycles, lowcut_frequency, ref_matrix_type] = GetOptions(sProcess);
     Comment = ['GEDAI: ' artifact_threshold_type ', ' num2str(epoch_size_in_cycles) ' cycles, ' num2str(lowcut_frequency) ' Hz, ' ref_matrix_type];
 end
 
@@ -151,9 +137,8 @@ function sInput = Run(sProcess, sInput) %#ok<DEFNU>
         ref_matrix_param = 'interpolated';
     end
 
-
     % Run GEDAI
-    [EEGclean, ~, ~, ~, ~, ~] = GEDAI(EEG, artifact_threshold_type, epoch_size_in_cycles, lowcut_frequency, ref_matrix_param, parallel, visualize_artifacts);
+    EEGclean = GEDAI(EEG, artifact_threshold_type, epoch_size_in_cycles, lowcut_frequency, ref_matrix_param, parallel, visualize_artifacts);
     
     % Convert back to Brainstorm format
     sInput = eeglab2brainstorm(EEGclean, sInput);
@@ -165,20 +150,10 @@ end
 
 %% ===== HELPER FUNCTIONS =====
 function EEG = brainstorm2eeglab(sInput, ChannelMat)
-    % Check if EEGLAB is in the path
-    if ~exist('eeg_checkset', 'file')
-        error('EEGLAB function eeg_checkset.m not found in the path. Please add EEGLAB to your Matlab path.');
-    end
-
-    % Create an empty EEGLAB structure
-    EEG = eeg_emptyset;
-
-    % Populate EEG fields from sInput
+    % Create an EEGLAB EEG structure populated with fields from sInput
     EEG.setname = sInput.Comment;
-    if isfield(sInput, 'FileName')
-        EEG.filename = sInput.FileName;
-        EEG.filepath = fileparts(sInput.FileName);
-    end
+    EEG.filename = sInput.FileName;
+    EEG.filepath = fileparts(sInput.FileName);
     EEG.subject = '';
     EEG.group = '';
     EEG.condition = '';
@@ -191,7 +166,9 @@ function EEG = brainstorm2eeglab(sInput, ChannelMat)
     EEG.xmax = sInput.TimeVector(end);
     EEG.times = sInput.TimeVector * 1000; % Convert to ms
     EEG.data = sInput.A;
-    
+    EEG.etc = [];
+    EEG.event = [];
+
     % Populate chanlocs
     for i = 1:length(ChannelMat.Channel)
         EEG.chanlocs(i).labels = ChannelMat.Channel(i).Name;
@@ -202,9 +179,6 @@ function EEG = brainstorm2eeglab(sInput, ChannelMat)
         end
         EEG.chanlocs(i).type = ChannelMat.Channel(i).Type;
     end
-
-    % Check the consistency of the dataset
-    EEG = eeg_checkset(EEG);
 end
 
 function sOutput = eeglab2brainstorm(EEG, sInput)
@@ -221,9 +195,4 @@ function sOutput = eeglab2brainstorm(EEG, sInput)
 
     % Update the comment
     sOutput.Comment = EEG.setname;
-
-    % Update the history
-    if isfield(EEG, 'history')
-        sOutput.History = EEG.history;
-    end
 end
