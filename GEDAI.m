@@ -82,16 +82,27 @@
 % For any questions, please contact:
 % dr.t.ros@gmail.com
 
-function [EEGclean, EEGartifacts, SENSAI_score, SENSAI_score_per_band, artifact_threshold_per_band, com]=GEDAI(EEGin,artifact_threshold_type, epoch_size_in_cycles, lowcut_frequency, ref_matrix_type,parallel,visualize_artifacts)
-arguments
-    EEGin struct;
-    artifact_threshold_type = 'auto' ;
-    epoch_size_in_cycles = 12;  % Note: Number of wave CYCLES per epoch across wavelet bands (default = 12 cycles)
-    lowcut_frequency = 0.5; %  exclude all wavelet bands below this frequency (default = 0.5 Hz)
-    ref_matrix_type = 'precomputed' ;
-    parallel = true ;
-    visualize_artifacts = false ;
+function [EEGclean, EEGartifacts, SENSAI_score, SENSAI_score_per_band, artifact_threshold_per_band, com]=GEDAI(EEGin, artifact_threshold_type, epoch_size_in_cycles, lowcut_frequency, ref_matrix_type, parallel, visualize_artifacts)
+
+if nargin < 2 || isempty(artifact_threshold_type)
+    artifact_threshold_type = 'auto';
 end
+if nargin < 3 || isempty(epoch_size_in_cycles)
+    epoch_size_in_cycles = 12;  % Note: Number of wave CYCLES per epoch across wavelet bands (default = 12 cycles)
+end
+if nargin < 4 || isempty(lowcut_frequency)
+    lowcut_frequency = 0.5; %  exclude all wavelet bands below this frequency (default = 0.5 Hz)
+end
+if nargin < 5 || isempty(ref_matrix_type)
+    ref_matrix_type = 'precomputed';
+end
+if nargin < 6 || isempty(parallel)
+    parallel = true;
+end
+if nargin < 7 || isempty(visualize_artifacts)
+    visualize_artifacts = false;
+end
+
 p = fileparts(which('GEDAI'));
 addpath(fullfile(p, 'auxiliaries'));
 tStart = tic;  
@@ -299,8 +310,8 @@ EEGartifacts.data = EEGavRef.data(:, 1:size(EEGclean.data, 2)) - EEGclean.data;
 noise_multiplier = 1;
 [SENSAI_score] = SENSAI_basic(double(EEGclean.data), double(EEGartifacts.data), EEGavRef.srate, broadband_epoch_size, refCOV, noise_multiplier);
 tEnd = toc(tStart);
-disp([newline 'SENSAI score: ' num2str(round(SENSAI_score, 2, "significant"))]);
-disp(['Elapsed time: ' num2str(round(tEnd, 2, "significant")) ' seconds']);
+disp([newline 'SENSAI score: ' num2str(round(SENSAI_score, 2, 'significant'))]);
+disp(['Elapsed time: ' num2str(round(tEnd, 2, 'significant')) ' seconds']);
 % Generate command history
 if ~ischar(ref_matrix_type)
     ref_matrix_type = 'custom';
@@ -310,7 +321,8 @@ com = sprintf('EEG = GEDAI(EEG, ''artifact_threshold'', ''%s'', ''epoch_size_in_
 if visualize_artifacts
     vis_artifacts(EEGclean, EEGavRef, 'ScaleBy', 'noscale', 'YScaling', 3*mad(EEGavRef.data(:)), 'show_removed_portions', false);
 end
-
-EEGclean = eegh(com, EEGclean);
-
+% Add command history to EEGLAB structure
+if exist('eegh', 'file')
+    EEGclean = eegh(com, EEGclean);
+end
 end
