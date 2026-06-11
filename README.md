@@ -1,7 +1,7 @@
-## GEDAI denoising plugin for EEGLAB
+## GEDAI denoising toolbox for Matlab (EEGLAB/Brainstorm/FieldTrip)
 
 
-<img width="300" height="270" alt="GEDAI-CIBM_logo" src="https://github.com/user-attachments/assets/bc1775f6-c3c7-4273-a2ac-6ac855653039" />
+<img width="150" height="135" alt="GEDAI-CIBM_logo" src="https://github.com/user-attachments/assets/bc1775f6-c3c7-4273-a2ac-6ac855653039" />
 
 
 ## Generalized Eigenvalue De-Artifacting Instrument (GEDAI) 
@@ -13,12 +13,12 @@
 
 **B)** Each data covariance matrix (dataCOV) is decomposed into source components with GEVD.  
 **C)** The GEVD uses a fixed theoretical reference matrix (refCOV) across all epochs, based on the leadfield matrix of an EEG forward model.  
-**D)** To determine the optimal threshold separating brain and artifactual subspaces, output EEG data is evaluated using the Signal & Noise Subspace Alignment Index (SENSAI). This is done by respectively maximising and minimizing the subspace similarities of the retained "signal" and removed "noise" with the refCOV. 
+**D)** To determine the optimal threshold separating brain and artifactual subspaces, output EEG data is evaluated using the Signal & Noise Subspace Alignment Index (SENSAI). This is done by respectively maximising and minimizing the subspace similarity index (SSI) of the retained "signal" (SSSI) and removed "noise" (NSSI) with the refCOV (where: SENSAI = SSSI - NSSI).
 
 ### Example videos of unsupervised GEDAI denoising
 
 
-[![Watch a few example videos](https://github.com/user-attachments/assets/6c4145c0-a67c-4575-bd83-e4a40d0dc871)](https://www.youtube.com/playlist?list=PLFwYJV7JHVFRmGTpW3y2MqkL_pYTitxpF)
+[![Watch a few example videos](https://github.com/user-attachments/assets/6c4145c0-a67c-4575-bd83-e4a40d0dc871)](https://www.youtube.com/watch?v=a4bb2wF_AEk&list=PLFwYJV7JHVFQV1Ki3oxa1BK6forD2TQ1d)
 
 
 ### Prerequisites
@@ -40,8 +40,13 @@ Check out the [Wiki](https://github.com/neurotuning/GEDAI-master/wiki/).
 
 If you use GEDAI in your research, please cite the original publication:
 
-*Return of the GEDAI: Unsupervised EEG Denoising based on Leadfield Filtering* (2025)  [bioRxiv]. [[DOI/Link to paper](https://www.biorxiv.org/content/10.1101/2025.10.04.680449v1)]  
-Ros, T, Férat, V., Huang, Y., Colangelo, C., Kia S.M., Wolfers T., Vulliemoz, S., & Michela, A. 
+*Return of the GEDAI: Unsupervised EEG Denoising based on Leadfield Filtering* (2025)  [bioRxiv].  
+Ros, T, Férat, V., Huang, Y., Colangelo, C., Kia S.M., Wolfers T., Vulliemoz, S., & Michela, A.  
+doi: https://doi.org/10.1101/2025.10.04.680449  
+
+### Watch the walktrough video on Youtube:
+[![Watch the Walkthrough video](https://github.com/user-attachments/assets/c1488fa6-236c-4cf8-9483-61728fc60a31)](https://youtu.be/qSM5narynzc)
+
 
 
 ## License

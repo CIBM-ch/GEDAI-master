@@ -11,14 +11,21 @@
 % For any questions, please contact:
 % dr.t.ros@gmail.com
 
-function [cleaned_data, artifacts_data, artifact_threshold_out] = clean_EEG(EEGdata_epoched, srate, epoch_size, artifact_threshold_in, refCOV, Eval, Evec)
+function [cleaned_data, artifacts_data, artifact_threshold_out] = clean_EEG(EEGdata_epoched, srate, epoch_size, artifact_threshold_in, refCOV, Eval, Evec, cosine_weights, signal_type, global_start_epoch_idx, global_total_epochs)
 %   This GEDAI function reconstructs the signal after removing artifactual components
 
 % --- PRE-ALLOCATION ---
 num_chans = size(Eval, 1);
 num_epochs = size(Eval, 3);
-% Pre-allocate the array to its full size with the correct complex type.
-all_diagonals = complex(zeros(num_chans * num_epochs, 1));
+
+if nargin < 10 || isempty(global_start_epoch_idx)
+    global_start_epoch_idx = 1;
+end
+if nargin < 11 || isempty(global_total_epochs)
+    global_total_epochs = num_epochs;
+end
+% Pre-allocate the array 
+all_diagonals = zeros(num_chans * num_epochs, 1, 'like', Eval);
 for i = 1:num_epochs
     start_idx = (i-1) * num_chans + 1;
     end_idx = i * num_chans;
@@ -31,57 +38,85 @@ log_Eig_val_all = log(magnitudes(magnitudes > 0)) + 100;
 
 %% Artifacting multiplication factor T1
 correction_factor = 1.00;
-T1 = correction_factor * (105 - artifact_threshold_in) / 100;
 
-%% Defining artifact threshold with Probability Integral Transform (PIT) fitting
-original_data = unique(log_Eig_val_all);
-[f,x] = ecdf(original_data);
-[unique_x, ia, ~] = unique(original_data);
-unique_f = f(ia);
-transformed_data = interp1(unique_x, unique_f, original_data, 'linear', 'extrap');
-upper_PIT_threshold = 0.95;
-outliers = original_data(transformed_data > upper_PIT_threshold);
-Treshold1 = T1 * min(outliers);
+if isscalar(artifact_threshold_in)
+    artifact_threshold_in = repmat(artifact_threshold_in, 1, num_epochs);
+end
+
+T1_array = correction_factor * (105 - artifact_threshold_in) / 100;
+
+%% Defining artifact threshold
+
+    if strcmpi(signal_type, 'eeg')
+       percentile_threshold = 98;
+      
+    elseif strcmpi(signal_type, 'meg')
+           percentile_threshold = 99;
+    end
+
+% Compute Treshold1 per epoch to match exactly how clean_SENSAI evaluates it:
+% SENSAI uses the GLOBAL percentile of ALL eigenvalues in the window it was
+% optimized on. We replicate that here by computing one percentile over ALL
+% eigenvalues (all channels × all epochs) and scaling per-epoch by T1_array.
+global_log_prctile = prctile(log_Eig_val_all, percentile_threshold);
+Treshold1_array = T1_array * global_log_prctile;
+
+
+%% Compute Regularized Reference Covariance for fast linear system bypass
+refCOV = real(refCOV);
+refCOV = (refCOV + refCOV') / 2;
+regularization_lambda = 0.05;
+reg_val = trace(refCOV) / num_chans;
+refCOV_reg = (1-regularization_lambda)*refCOV + regularization_lambda*reg_val*eye(num_chans, 'like', refCOV);
+refCOV_reg = (refCOV_reg + refCOV_reg') / 2;
 
 %% Cleaning EEG by removing outlying GEVD components
-epoch_samples = srate * epoch_size;
-artifacts = complex(zeros(size(EEGdata_epoched)));
-cleaned_epoched_data = complex(zeros(size(EEGdata_epoched)));
-cosine_weights = create_cosine_weights(num_chans, srate, epoch_size, 1);
+epoch_samples = round(srate * epoch_size);
+artifacts = zeros(size(EEGdata_epoched), 'like', EEGdata_epoched);
+cleaned_epoched_data = zeros(size(EEGdata_epoched), 'like', EEGdata_epoched);
+if nargin < 8 || isempty(cosine_weights)
+    cosine_weights = create_cosine_weights(num_chans, srate, epoch_size, 1);
+end
 half_epoch = epoch_samples/2;
 
 for i = 1:num_epochs
-
     component_spatial_filter = Evec(:,:,i);
     
-    for j = 1:num_chans
-        if abs(Eval(j,j,i)) < exp(Treshold1 - 100)
-            component_spatial_filter(:,j) = 0;
-        end
-    end
+    % --- OPTIMIZATION START ---
+    % 1. Create a logical mask of indices to zero out
+    % (We zero out the SIGNAL components to reconstruct the NOISE to subtract)
+    signal_indices = abs(diag(Eval(:,:,i))) < exp(Treshold1_array(i) - 100);
     
-    artifacts_timecourses = component_spatial_filter' * EEGdata_epoched(:,:,i);
-    
-    Signal_to_remove = Evec(:,:,i)' \ artifacts_timecourses;
+    % 2. Apply the mask (Vectorized)
+    component_spatial_filter(:, signal_indices) = 0;
+    % --- OPTIMIZATION END ---
+
+    artifacts_timecourses = component_spatial_filter' * EEGdata_epoched(:,:,i);    
+    Signal_to_remove = refCOV_reg * (Evec(:,:,i) * artifacts_timecourses);
     
     artifacts(:, :, i) = Signal_to_remove;
     cleaned_epoch = EEGdata_epoched(:,:,i) - Signal_to_remove;
     
     % Apply cosine windowing to mitigate edge effects from epoching
-    if i == 1
+    global_idx = global_start_epoch_idx + i - 1;
+    if global_idx == 1
         cleaned_epoch(:, half_epoch+1:end) = cleaned_epoch(:, half_epoch+1:end) .* cosine_weights(:, half_epoch+1:end);
-    elseif i == num_epochs
+        artifacts(:, :, i) = artifacts(:, :, i); % Copy first
+        artifacts(:, half_epoch+1:end, i) = artifacts(:, half_epoch+1:end, i) .* cosine_weights(:, half_epoch+1:end);
+    elseif global_idx == global_total_epochs
         cleaned_epoch(:, 1:half_epoch) = cleaned_epoch(:, 1:half_epoch) .* cosine_weights(:, 1:half_epoch);
+        artifacts(:, 1:half_epoch, i) = artifacts(:, 1:half_epoch, i) .* cosine_weights(:, 1:half_epoch);
     else
         cleaned_epoch = cleaned_epoch .* cosine_weights;
+        artifacts(:, :, i) = artifacts(:, :, i) .* cosine_weights;
     end
     
     cleaned_epoched_data(:,:,i) = cleaned_epoch;
 end
 
 % Reshape data back to continuous form and return outputs
-cleaned_data = real(reshape(cleaned_epoched_data, num_chans, []));
-artifacts_data = real(reshape(artifacts, num_chans, []));
+cleaned_data = reshape(cleaned_epoched_data, num_chans, []);
+artifacts_data = reshape(artifacts, num_chans, []);
 artifact_threshold_out = artifact_threshold_in;
 
 end
